@@ -176,6 +176,13 @@ async function fetchStats() {
             const hours = Math.floor(uptimeSecs / 3600);
             const minutes = Math.floor((uptimeSecs % 3600) / 60);
             document.getElementById('sys-uptime').innerText = `${hours}h ${minutes}m`;
+
+            // Python Env Info
+            if (data.pythonInfo) {
+                document.getElementById('sys-python').innerText = data.pythonInfo.pythonVersion || '-';
+                document.getElementById('sys-torch').innerText = data.pythonInfo.torchVersion || '-';
+                document.getElementById('sys-accelerator').innerText = data.pythonInfo.device || '-';
+            }
         }
         
         // Update online indicator
@@ -1824,5 +1831,130 @@ function loadDatasetTemplate(templateId) {
             msgEl.className = 'alert-message success';
             msgEl.innerText = `${templateId.replace('_', ' ')} template loaded. Click 'Save Dataset' to write it to disk.`;
         }
+    }
+}
+
+// Preset model selection
+function selectPreset(source, repoId, url, folderName, filename) {
+    const sourceSelect = document.getElementById('dl-source-select');
+    sourceSelect.value = source;
+    onDownloadSourceChange(); // Trigger visual toggle
+    
+    if (source === 'huggingface' || source === 'modelscope') {
+        document.getElementById('dl-repoid-input').value = repoId;
+    } else {
+        document.getElementById('dl-url-input').value = url;
+    }
+    
+    document.getElementById('dl-folder-input').value = folderName;
+    document.getElementById('dl-filename-input').value = filename;
+    
+    // Alert the user
+    const msg = document.getElementById('downloader-message');
+    msg.className = 'alert-message success';
+    msg.innerText = `Preset chosen: ${repoId || filename || 'Model'}. Click "Start Download Process" above.`;
+    msg.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// AI Synthetic Dataset Generator
+async function generateSyntheticDataset() {
+    const btn = document.getElementById('btn-generate-synthetic');
+    const msg = document.getElementById('dataset-gen-message');
+    const provider = document.getElementById('ds-gen-provider').value;
+    const topic = document.getElementById('ds-gen-topic').value.trim();
+    const count = parseInt(document.getElementById('ds-gen-count').value);
+    
+    if (!topic) {
+        alert('Please enter a topic or prompt goal to generate SFT training examples.');
+        return;
+    }
+    
+    btn.disabled = true;
+    btn.innerText = '🪄 Generating SFT Pairs...';
+    msg.style.display = 'block';
+    msg.className = 'alert-message text-muted';
+    msg.innerText = `Calling ${provider} to generate ${count} training examples on "${topic}"...`;
+    
+    // Choose model based on provider
+    let model = '';
+    if (provider === 'openai') model = 'gpt-4o-mini';
+    else if (provider === 'gemini') model = 'gemini-1.5-flash';
+    else if (provider === 'anthropic') model = 'claude-3-5-sonnet-20240620';
+    else if (provider === 'cohere') model = 'command-r-plus';
+    else if (provider === 'openrouter') model = 'meta-llama/llama-3-8b-instruct:free';
+    
+    const systemInstruction = `You are a machine learning SFT training data generator. Your job is to output training examples.
+You must output ONLY a raw, valid JSON array of objects. Do NOT output markdown code blocks (e.g. \`\`\`json). Just the raw JSON content itself.
+Each object must have exactly two keys: "prompt" (the user instruction/prompt) and "response" (the assistant output).`;
+
+    const userPrompt = `Generate exactly ${count} diverse and realistic prompt-response SFT training pairs about: "${topic}".
+Output format:
+[
+  {"prompt": "...", "response": "..."},
+  ...
+]`;
+
+    try {
+        const response = await fetch('/api/playground/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                provider: provider,
+                model: model,
+                messages: [
+                    { role: 'system', content: systemInstruction },
+                    { role: 'user', content: userPrompt }
+                ],
+                temperature: 0.8,
+                max_tokens: 2048
+            })
+        });
+        
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to call generator API');
+        }
+        
+        let text = '';
+        if (data.choices && data.choices[0]) {
+            text = data.choices[0].message.content.trim();
+        } else {
+            throw new Error('No content returned from LLM proxy');
+        }
+        
+        // Strip out markdown code blocks if the model returned them
+        if (text.startsWith('```')) {
+            text = text.replace(/^```[a-zA-Z0-9]*\n/, '').replace(/\n```$/, '');
+        }
+        text = text.trim();
+        
+        const parsed = JSON.parse(text);
+        if (!Array.isArray(parsed)) {
+            throw new Error('Response parsed successfully but is not a JSON array');
+        }
+        
+        // Append parsed elements
+        parsed.forEach(item => {
+            if (item.prompt && item.response) {
+                datasetEntries.push({
+                    prompt: item.prompt.trim(),
+                    response: item.response.trim()
+                });
+            }
+        });
+        
+        renderDatasetTable();
+        updateDatasetStats();
+        
+        msg.className = 'alert-message success';
+        msg.innerText = `Successfully generated and added ${parsed.length} synthetic examples to the builder. Make sure to click "Save Dataset" to write to active_dataset.jsonl!`;
+        document.getElementById('ds-gen-topic').value = '';
+    } catch (err) {
+        console.error('Synthetic generation error:', err);
+        msg.className = 'alert-message error';
+        msg.innerText = `Generation failed: ${err.message}. Please verify your API Key for ${provider} in the Settings panel.`;
+    } finally {
+        btn.disabled = false;
+        btn.innerText = '🪄 Generate & Append Examples';
     }
 }

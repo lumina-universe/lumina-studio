@@ -12,6 +12,44 @@ const ENV_PATH = path.join(__dirname, '.env');
 const VENV_PYTHON = path.join(__dirname, '.venv', 'bin', 'python');
 const HISTORY_PATH = path.join(__dirname, 'run_history.json');
 
+let pythonInfo = {
+    pythonVersion: 'Checking...',
+    torchVersion: 'Checking...',
+    device: 'Checking...'
+};
+
+function checkPythonEnv() {
+    const checkScript = `import sys
+import torch
+device = "CPU"
+if torch.cuda.is_available():
+    device = "CUDA GPU"
+elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+    device = "Apple Silicon GPU (MPS)"
+print(f"{sys.version.split()[0]} | {torch.__version__} | {device}", end="")`;
+    const proc = spawn(VENV_PYTHON, ['-c', checkScript]);
+    let stdout = '';
+    proc.stdout.on('data', data => stdout += data.toString());
+    proc.on('close', code => {
+        if (code === 0 && stdout.trim()) {
+            const parts = stdout.trim().split(' | ');
+            if (parts.length >= 3) {
+                pythonInfo.pythonVersion = parts[0];
+                pythonInfo.torchVersion = parts[1];
+                pythonInfo.device = parts[2];
+                console.log(`Python Environment Check: Python ${pythonInfo.pythonVersion}, PyTorch ${pythonInfo.torchVersion}, Device: ${pythonInfo.device}`);
+            }
+        } else {
+            console.error("Python environment check failed on startup");
+            pythonInfo.pythonVersion = 'Unavailable';
+            pythonInfo.torchVersion = 'Unavailable';
+            pythonInfo.device = 'CPU (Fallback)';
+        }
+    });
+}
+checkPythonEnv();
+
+
 // Helper: Log completed training run to local JSON history file
 function logTrainingRun(run) {
     let history = [];
@@ -1030,26 +1068,48 @@ app.get('/api/files/view', (req, res) => {
     }
 });
 
-// 5. System Stats Endpoint
-app.get('/api/stats', (req, res) => {
-    exec('df -h /', (err, dfStdout) => {
-        let diskUsage = 'Unknown';
-        if (!err) {
-            const lines = dfStdout.trim().split('\n');
-            if (lines.length > 1) {
-                const parts = lines[1].replace(/\s+/g, ' ').split(' ');
-                diskUsage = `${parts[2]} used of ${parts[1]} (${parts[4]} free)`;
+// Helper: Calculate CPU usage cross-platform
+function getCPUUsage() {
+    return new Promise((resolve) => {
+        const first = os.cpus();
+        setTimeout(() => {
+            const second = os.cpus();
+            let userDiff = 0;
+            let sysDiff = 0;
+            let idleDiff = 0;
+            for (let i = 0; i < first.length; i++) {
+                if (!first[i] || !second[i]) continue;
+                const t1 = first[i].times;
+                const t2 = second[i].times;
+                userDiff += (t2.user - t1.user) + (t2.nice - t1.nice);
+                sysDiff += t2.sys - t1.sys;
+                idleDiff += t2.idle - t1.idle;
             }
-        }
+            const total = userDiff + sysDiff + idleDiff;
+            const usage = total > 0 ? ((userDiff + sysDiff) / total) * 100 : 0;
+            resolve(usage.toFixed(1) + '%');
+        }, 150);
+    });
+}
 
-        exec('top -l 1 -n 0 | grep "CPU usage"', (cpuErr, cpuStdout) => {
-            let cpuUsage = '0.0%';
-            if (!cpuErr && cpuStdout) {
-                const match = cpuStdout.match(/CPU usage:\s+([0-9.]+)%\s+user,\s+([0-9.]+)%\s+sys/);
-                if (match) {
-                    const user = parseFloat(match[1]);
-                    const sys = parseFloat(match[2]);
-                    cpuUsage = (user + sys).toFixed(1) + '%';
+// 5. System Stats Endpoint
+app.get('/api/stats', async (req, res) => {
+    try {
+        const cpuUsage = await getCPUUsage();
+        
+        exec('df -h /', (err, dfStdout) => {
+            let diskUsage = 'Unknown';
+            if (!err && dfStdout) {
+                const lines = dfStdout.trim().split('\n');
+                if (lines.length > 1) {
+                    const parts = lines[1].replace(/\s+/g, ' ').split(' ');
+                    if (parts.length >= 4) {
+                        // Normalize indices for standard Unix / macOS output
+                        const size = parts[1];
+                        const used = parts[2];
+                        const avail = parts[3];
+                        diskUsage = `${used} used of ${size} (${avail} free)`;
+                    }
                 }
             }
 
@@ -1061,7 +1121,7 @@ app.get('/api/stats', (req, res) => {
                 hostname: os.hostname(),
                 platform: os.platform(),
                 uptime: Math.floor(os.uptime()),
-                cpu: os.cpus()[0].model,
+                cpu: os.cpus()[0] ? os.cpus()[0].model : 'Unknown',
                 cpuCount: os.cpus().length,
                 cpuUsage: cpuUsage,
                 memory: {
@@ -1069,10 +1129,13 @@ app.get('/api/stats', (req, res) => {
                     used: (usedMem / (1024 ** 3)).toFixed(2) + ' GB',
                     percentage: ((usedMem / totalMem) * 100).toFixed(1) + '%'
                 },
-                disk: diskUsage
+                disk: diskUsage,
+                pythonInfo: pythonInfo
             });
         });
-    });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.listen(PORT, '0.0.0.0', () => {

@@ -200,6 +200,18 @@
                                         <span class="label">Uptime</span>
                                         <span class="value" id="sys-uptime">-</span>
                                     </div>
+                                    <div class="stats-row">
+                                        <span class="label">Python Version</span>
+                                        <span class="value" id="sys-python">-</span>
+                                    </div>
+                                    <div class="stats-row">
+                                        <span class="label">PyTorch Version</span>
+                                        <span class="value" id="sys-torch">-</span>
+                                    </div>
+                                    <div class="stats-row">
+                                        <span class="label">Accelerator Device</span>
+                                        <span class="value" id="sys-accelerator">-</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -550,6 +562,40 @@
                                         </div>
                                     </div>
                                 </div>
+                                <hr class="divider" style="margin: 20px 0; border: 0; border-top: 1px solid rgba(139, 92, 246, 0.15);">
+                                <div class="mt-4">
+                                    <h4 class="mb-2" style="color: #fff; font-size: 0.95rem; font-weight: 600;">AI Synthetic Dataset Generator</h4>
+                                    <p class="subtext mb-3" style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 12px;">Generate SFT pairs using your configured API credentials.</p>
+                                    
+                                    <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+                                        <div style="flex: 1;">
+                                            <label for="ds-gen-provider" style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">LLM Provider</label>
+                                            <select id="ds-gen-provider" class="w-full select-glow" style="padding: 6px 10px; font-size: 0.8rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color:#fff; box-sizing: border-box;">
+                                                <option value="gemini">Google Gemini API</option>
+                                                <option value="openai">OpenAI API</option>
+                                                <option value="openrouter">OpenRouter API</option>
+                                                <option value="anthropic">Anthropic (Claude)</option>
+                                                <option value="cohere">Cohere API</option>
+                                            </select>
+                                        </div>
+                                        <div style="width: 100px;">
+                                            <label for="ds-gen-count" style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Count</label>
+                                            <select id="ds-gen-count" class="w-full select-glow" style="padding: 6px 10px; font-size: 0.8rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color:#fff; box-sizing: border-box;">
+                                                <option value="3">3 Pairs</option>
+                                                <option value="5" selected>5 Pairs</option>
+                                                <option value="10">10 Pairs</option>
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div style="margin-bottom: 16px;">
+                                        <label for="ds-gen-topic" style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Topic or Prompt Goal</label>
+                                        <input type="text" id="ds-gen-topic" placeholder="e.g. E-commerce refund assistant" style="padding: 8px 10px; font-size: 0.8rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color:#fff; width: 100%; box-sizing: border-box;">
+                                    </div>
+                                    
+                                    <button type="button" class="btn btn-secondary btn-sm w-full" id="btn-generate-synthetic" onclick="generateSyntheticDataset()">🪄 Generate & Append Examples</button>
+                                    <div id="dataset-gen-message" class="alert-message mt-2" style="font-size: 0.75rem; display: none;"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -746,45 +792,88 @@
                 <!-- TAB 5: MODEL DOWNLOADER -->
                 <section class="tab-panel" id="panel-downloader">
                     <div class="grid-layout cols-2">
-                        <!-- Left Panel: Download Form -->
-                        <div class="card glassmorphic">
-                            <div class="card-header border-glow">
-                                <h3>Download Model Weights</h3>
-                                <p>Pull models from Hugging Face Hub or direct HTTP/HTTPS URLs</p>
+                        <!-- Left Column (Stacked cards) -->
+                        <div style="display: flex; flex-direction: column; gap: 24px;">
+                            <!-- Left Panel: Download Form -->
+                            <div class="card glassmorphic">
+                                <div class="card-header border-glow">
+                                    <h3>Download Model Weights</h3>
+                                    <p>Pull models from Hugging Face Hub or direct HTTP/HTTPS URLs</p>
+                                </div>
+                                <div class="card-body">
+                                    <form id="downloader-form" onsubmit="startModelDownload(event)">
+                                        <div class="form-group">
+                                            <label for="dl-source-select">Source Type</label>
+                                            <select id="dl-source-select" class="w-full" onchange="onDownloadSourceChange()">
+                                                <option value="huggingface">Hugging Face Hub</option>
+                                                <option value="modelscope">ModelScope Hub</option>
+                                                <option value="civitai">Civitai (Stable Diffusion)</option>
+                                                <option value="url">Direct HTTP/HTTPS URL</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group" id="dl-repo-id-group">
+                                            <label for="dl-repoid-input">Hugging Face Repo ID</label>
+                                            <input type="text" id="dl-repoid-input" placeholder="e.g. facebook/opt-125m">
+                                            <p class="input-help">Will snapshot download all weights & config files.</p>
+                                        </div>
+                                        <div class="form-group hidden" id="dl-url-group">
+                                            <label for="dl-url-input">Direct Model URL</label>
+                                            <input type="text" id="dl-url-input" placeholder="e.g. https://example.com/model.safetensors">
+                                            <p class="input-help">Supports direct links from Civitai, Kaggle, or other hosts.</p>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="dl-filename-input">Custom Filename (Optional)</label>
+                                            <input type="text" id="dl-filename-input" placeholder="e.g. model.safetensors (useful for URL downloads)">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="dl-folder-input">Target Folder Name (Optional)</label>
+                                            <input type="text" id="dl-folder-input" placeholder="e.g. opt-125m-local">
+                                            <p class="input-help">Saved inside workspace <code>models/</code> folder.</p>
+                                        </div>
+                                        <button type="submit" class="btn btn-primary w-full" id="btn-start-download">Start Download Process</button>
+                                    </form>
+                                    <div id="downloader-message" class="alert-message mt-2"></div>
+                                </div>
                             </div>
-                            <div class="card-body">
-                                <form id="downloader-form" onsubmit="startModelDownload(event)">
-                                    <div class="form-group">
-                                        <label for="dl-source-select">Source Type</label>
-                                        <select id="dl-source-select" class="w-full" onchange="onDownloadSourceChange()">
-                                            <option value="huggingface">Hugging Face Hub</option>
-                                            <option value="modelscope">ModelScope Hub</option>
-                                            <option value="civitai">Civitai (Stable Diffusion)</option>
-                                            <option value="url">Direct HTTP/HTTPS URL</option>
-                                        </select>
+
+                            <!-- Recommended Model Presets -->
+                            <div class="card glassmorphic">
+                                <div class="card-header border-glow">
+                                    <h3>Recommended Model Presets</h3>
+                                    <p>Quick-start presets for popular open-source models</p>
+                                </div>
+                                <div class="card-body">
+                                    <div class="presets-container">
+                                        <div class="preset-card" onclick="selectPreset('huggingface', 'facebook/opt-125m', '', 'opt-125m', '')">
+                                            <div class="preset-info">
+                                                <span class="preset-name">OPT-125m</span>
+                                                <span class="badge-mini">Hugging Face</span>
+                                            </div>
+                                            <p class="preset-desc">125M params. Perfect for testing CPU fine-tuning quickly.</p>
+                                        </div>
+                                        <div class="preset-card" onclick="selectPreset('huggingface', 'Qwen/Qwen2.5-0.5B-Instruct', '', 'qwen-0.5b', '')">
+                                            <div class="preset-info">
+                                                <span class="preset-name">Qwen-2.5-0.5B-Instruct</span>
+                                                <span class="badge-mini">Hugging Face</span>
+                                            </div>
+                                            <p class="preset-desc">500M params. Powerful instruction-following, CPU-friendly.</p>
+                                        </div>
+                                        <div class="preset-card" onclick="selectPreset('huggingface', 'TinyLlama/TinyLlama-1.1B-Chat-v1.0', '', 'tinyllama-1.1b', '')">
+                                            <div class="preset-info">
+                                                <span class="preset-name">TinyLlama-1.1B</span>
+                                                <span class="badge-mini">Hugging Face</span>
+                                            </div>
+                                            <p class="preset-desc">1.1B params. Good trade-off between speed and output quality.</p>
+                                        </div>
+                                        <div class="preset-card" onclick="selectPreset('url', '', 'https://huggingface.co/lmstudio-community/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf', 'gemma-2b-gguf', 'gemma-2-2b-it-Q4_K_M.gguf')">
+                                            <div class="preset-info">
+                                                <span class="preset-name">Gemma-2-2B GGUF</span>
+                                                <span class="badge-mini bg-teal">Direct URL</span>
+                                            </div>
+                                            <p class="preset-desc">Gemma 2B GGUF (Q4_K_M). Standard layout for desktop/laptop inference.</p>
+                                        </div>
                                     </div>
-                                    <div class="form-group" id="dl-repo-id-group">
-                                        <label for="dl-repoid-input">Hugging Face Repo ID</label>
-                                        <input type="text" id="dl-repoid-input" placeholder="e.g. facebook/opt-125m">
-                                        <p class="input-help">Will snapshot download all weights & config files.</p>
-                                    </div>
-                                    <div class="form-group hidden" id="dl-url-group">
-                                        <label for="dl-url-input">Direct Model URL</label>
-                                        <input type="text" id="dl-url-input" placeholder="e.g. https://example.com/model.safetensors">
-                                        <p class="input-help">Supports direct links from Civitai, Kaggle, or other hosts.</p>
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="dl-filename-input">Custom Filename (Optional)</label>
-                                        <input type="text" id="dl-filename-input" placeholder="e.g. model.safetensors (useful for URL downloads)">
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="dl-folder-input">Target Folder Name (Optional)</label>
-                                        <input type="text" id="dl-folder-input" placeholder="e.g. opt-125m-local">
-                                        <p class="input-help">Saved inside workspace <code>models/</code> folder.</p>
-                                    </div>
-                                    <button type="submit" class="btn btn-primary w-full" id="btn-start-download">Start Download Process</button>
-                                </form>
-                                <div id="downloader-message" class="alert-message mt-2"></div>
+                                </div>
                             </div>
                         </div>
 
