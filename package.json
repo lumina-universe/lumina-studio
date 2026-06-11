@@ -1,0 +1,15 @@
+{
+  "name": "ai-studio",
+  "version": "1.0.0",
+  "description": "Local AI Model Hub, Fine-tuning, and Generation Dashboard",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5"
+  }
+}

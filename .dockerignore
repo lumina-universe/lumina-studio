@@ -1,0 +1,10 @@
+.venv
+node_modules
+models
+model_output
+model_output_merged
+*.log
+active_dataset.jsonl
+active_training_config.json
+.git
+.DS_Store

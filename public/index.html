@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lumina Studio - Model Hub, Fine-Tuning & Multi-API Dashboard</title>
+    <meta name="description" content="Lumina Studio for managing local/remote models, downloading weights, training custom adapters, and playground comparisons.">
+    <!-- Modern Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="app-sidebar">
+            <div class="sidebar-header">
+                <div class="logo-glow"></div>
+                <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+                <h1>Lumina Studio</h1>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <button class="nav-item active" id="tab-btn-dashboard" onclick="switchTab('dashboard')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                    <span>Dashboard</span>
+                </button>
+                <button class="nav-item" id="tab-btn-downloader" onclick="switchTab('downloader')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                    <span>Model Downloader</span>
+                </button>
+                <button class="nav-item" id="tab-btn-playground" onclick="switchTab('playground')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    <span>Model Playground</span>
+                </button>
+                <button class="nav-item" id="tab-btn-huggingface" onclick="switchTab('huggingface')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    <span>Hugging Face Hub</span>
+                </button>
+                <button class="nav-item" id="tab-btn-finetune" onclick="switchTab('finetune')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                    <span>Fine-Tuning Studio</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="system-status-pill">
+                    <span class="pulse-indicator green" id="status-pulse"></span>
+                    <span id="status-text">Server: Online</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace Area -->
+        <main class="app-main">
+            <!-- Header bar for stats summary -->
+            <header class="main-header">
+                <div class="header-title">
+                    <h2 id="current-tab-title">Dashboard Overview</h2>
+                    <p id="current-tab-desc">Monitor resources and configure global credentials.</p>
+                </div>
+                <div class="header-stats">
+                    <div class="header-stat-card">
+                        <span class="stat-label">CPU Usage</span>
+                        <div class="stat-bar-container">
+                            <div class="stat-bar-fill" id="cpu-bar" style="width: 0%"></div>
+                        </div>
+                        <span class="stat-val" id="cpu-val">0%</span>
+                    </div>
+                    <div class="header-stat-card">
+                        <span class="stat-label">Memory</span>
+                        <div class="stat-bar-container">
+                            <div class="stat-bar-fill" id="mem-bar" style="width: 0%"></div>
+                        </div>
+                        <span class="stat-val" id="mem-val">0 GB / 0 GB</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area (Switchable Panels) -->
+            <div class="workspace-content">
+                
+                <!-- TAB 1: DASHBOARD & SETTINGS -->
+                <section class="tab-panel active" id="panel-dashboard">
+                    <div class="grid-layout cols-2">
+                        <!-- Left Panel: Settings Form -->
+                        <div class="card glassmorphic">
+                            <div class="card-header border-glow">
+                                <h3>Credentials Config</h3>
+                                <p>Manage tokens and API keys securely</p>
+                            </div>
+                            <div class="card-body">
+                                <form id="settings-form" onsubmit="saveSettings(event)" style="max-height: 400px; overflow-y: auto; padding-right: 8px;">
+                                    <div class="form-group">
+                                        <label for="hf-token-input">
+                                            <span>Hugging Face Access Token</span>
+                                            <a href="https://huggingface.co/settings/tokens" target="_blank" class="help-link">Get Token</a>
+                                        </label>
+                                        <div class="input-wrapper">
+                                            <input type="password" id="hf-token-input" placeholder="hf_..." autocomplete="off">
+                                            <button type="button" class="btn-icon" onclick="togglePasswordVisibility('hf-token-input')">
+                                                👁️
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="openrouter-key-input">
+                                            <span>OpenRouter API Key</span>
+                                            <a href="https://openrouter.ai/keys" target="_blank" class="help-link">Get Key</a>
+                                        </label>
+                                        <div class="input-wrapper">
+                                            <input type="password" id="openrouter-key-input" placeholder="sk-or-..." autocomplete="off">
+                                            <button type="button" class="btn-icon" onclick="togglePasswordVisibility('openrouter-key-input')">
+                                                👁️
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="openai-key-input">
+                                            <span>OpenAI API Key</span>
+                                            <a href="https://platform.openai.com/api-keys" target="_blank" class="help-link">Get Key</a>
+                                        </label>
+                                        <div class="input-wrapper">
+                                            <input type="password" id="openai-key-input" placeholder="sk-proj-..." autocomplete="off">
+                                            <button type="button" class="btn-icon" onclick="togglePasswordVisibility('openai-key-input')">👁️</button>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="gemini-key-input">
+                                            <span>Gemini API Key</span>
+                                            <a href="https://aistudio.google.com/app/apikey" target="_blank" class="help-link">Get Key</a>
+                                        </label>
+                                        <div class="input-wrapper">
+                                            <input type="password" id="gemini-key-input" placeholder="AIzaSy..." autocomplete="off">
+                                            <button type="button" class="btn-icon" onclick="togglePasswordVisibility('gemini-key-input')">👁️</button>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="anthropic-key-input">
+                                            <span>Anthropic (Claude) API Key</span>
+                                            <a href="https://console.anthropic.com/settings/keys" target="_blank" class="help-link">Get Key</a>
+                                        </label>
+                                        <div class="input-wrapper">
+                                            <input type="password" id="anthropic-key-input" placeholder="sk-ant-..." autocomplete="off">
+                                            <button type="button" class="btn-icon" onclick="togglePasswordVisibility('anthropic-key-input')">👁️</button>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="cohere-key-input">
+                                            <span>Cohere API Key</span>
+                                            <a href="https://dashboard.cohere.com/api-keys" target="_blank" class="help-link">Get Key</a>
+                                        </label>
+                                        <div class="input-wrapper">
+                                            <input type="password" id="cohere-key-input" placeholder="Cohere key..." autocomplete="off">
+                                            <button type="button" class="btn-icon" onclick="togglePasswordVisibility('cohere-key-input')">👁️</button>
+                                        </div>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary w-full" id="btn-save-settings">Save API Settings</button>
+                                </form>
+                                <div id="settings-message" class="alert-message"></div>
+                            </div>
+                        </div>
+
+                        <!-- Right Panel: System Environment & Info -->
+                        <div class="card glassmorphic">
+                            <div class="card-header">
+                                <h3>System Environment</h3>
+                                <p>Host hardware and system architecture details</p>
+                            </div>
+                            <div class="card-body">
+                                <div class="stats-table">
+                                    <div class="stats-row">
+                                        <span class="label">Hostname</span>
+                                        <span class="value" id="sys-hostname">-</span>
+                                    </div>
+                                    <div class="stats-row">
+                                        <span class="label">Platform</span>
+                                        <span class="value text-capitalize" id="sys-platform">-</span>
+                                    </div>
+                                    <div class="stats-row">
+                                        <span class="label">CPU Hardware</span>
+                                        <span class="value" id="sys-cpu">-</span>
+                                    </div>
+                                    <div class="stats-row">
+                                        <span class="label">CPU Core Count</span>
+                                        <span class="value" id="sys-cores">-</span>
+                                    </div>
+                                    <div class="stats-row">
+                                        <span class="label">Storage Disk</span>
+                                        <span class="value" id="sys-disk">-</span>
+                                    </div>
+                                    <div class="stats-row">
+                                        <span class="label">Uptime</span>
+                                        <span class="value" id="sys-uptime">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dataset Manager -->
+                    <div class="card glassmorphic mt-6">
+                        <div class="card-header border-glow flex-row justify-between align-center">
+                            <div>
+                                <h3>Workspace Dataset Manager</h3>
+                                <p>Manage, upload, and inspect local dataset files (.jsonl / .csv) for training runs</p>
+                            </div>
+                            <button class="btn btn-secondary btn-sm" onclick="loadDatasets()">Refresh Dataset List</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="grid-layout cols-2 gap-small">
+                                <!-- Dataset Table -->
+                                <div class="table-container scrollable" style="max-height: 250px;">
+                                    <table class="dataset-table" id="dataset-list-table">
+                                        <thead>
+                                            <tr>
+                                                <th>File Name</th>
+                                                <th>Size</th>
+                                                <th>Rows</th>
+                                                <th>Modified</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td colspan="4" class="placeholder-text">Click refresh to load local datasets</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <!-- Custom Dataset Form -->
+                                <div>
+                                    <form id="dataset-upload-form" onsubmit="saveCustomDataset(event)">
+                                        <div class="form-group">
+                                            <label for="dataset-filename">Dataset File Name</label>
+                                            <input type="text" id="dataset-filename" placeholder="custom_dataset.jsonl" required>
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="dataset-filecontent">Dataset Content (JSONL format)</label>
+                                            <textarea id="dataset-filecontent" rows="4" placeholder='{"text": "### User: Hello\n### Assistant: Hi!"}&#10;{"text": "### User: What is 2+2?\n### Assistant: It is 4."}' required style="resize: vertical;"></textarea>
+                                        </div>
+                                        <button type="submit" class="btn btn-secondary w-full" id="btn-save-dataset">Save Dataset File</button>
+                                    </form>
+                                    <div id="dataset-message" class="alert-message mt-2"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB 2: OPENROUTER PLAYGROUND -->
+                <section class="tab-panel" id="panel-playground">
+                    <div class="playground-layout">
+                        <!-- Chat Area -->
+                        <div class="chat-container card glassmorphic">
+                            <div class="chat-header" style="flex-wrap: wrap; gap: 12px;">
+                                <div class="chat-title-info">
+                                    <span class="indicator green"></span>
+                                    <h3>Model Playground</h3>
+                                    
+                                    <!-- Mode Toggle Buttons -->
+                                    <div class="btn-group-toggle ml-4" style="display: flex; gap: 4px; background: rgba(0,0,0,0.2); padding: 4px; border-radius: 8px; border: 1px solid var(--border-color);">
+                                        <button type="button" class="btn btn-xs active" id="btn-mode-single" onclick="setPlaygroundMode('single')" style="border-radius: 6px; padding: 4px 10px; background: var(--primary); font-weight:600; color:#fff;">Single Model</button>
+                                        <button type="button" class="btn btn-xs" id="btn-mode-compare" onclick="setPlaygroundMode('compare')" style="border-radius: 6px; padding: 4px 10px; background: transparent; font-weight:600; color:var(--text-secondary);">Side-by-Side</button>
+                                    </div>
+                                </div>
+                                    <!-- Controls for Single Mode (visible by default) -->
+                                 <div class="chat-controls" id="single-model-controls" style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                                     <label for="playground-provider-select">Provider:</label>
+                                     <select id="playground-provider-select" class="select-glow" onchange="onPlaygroundProviderChange('single')">
+                                         <option value="openrouter" selected>OpenRouter API</option>
+                                         <option value="openai">OpenAI API</option>
+                                         <option value="gemini">Google Gemini API</option>
+                                         <option value="anthropic">Anthropic (Claude)</option>
+                                         <option value="cohere">Cohere API</option>
+                                         <option value="local">Local CPU/GPU</option>
+                                     </select>
+                                     
+                                     <label for="playground-model-select">Model:</label>
+                                     <select id="playground-model-select" class="select-glow" style="min-width: 150px;" onchange="toggleLocalModelInputs()">
+                                         <!-- Will be populated by JS -->
+                                     </select>
+                                     
+                                     <div id="local-model-custom-inputs" class="local-model-inputs hidden">
+                                         <input type="text" id="playground-local-model-name" value="facebook/opt-125m" placeholder="Model path/id" style="padding: 6px 10px; width: 140px; font-size:0.8rem; border-radius:6px; background:rgba(0,0,0,0.3); border: 1px solid var(--border-color); color:#fff;">
+                                     </div>
+                                 </div>
+
+                                 <!-- Controls for Compare Mode (hidden by default) -->
+                                 <div class="chat-controls hidden" id="compare-model-controls" style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+                                     <!-- Model A Select -->
+                                     <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                         <span class="badge" style="background: rgba(99, 102, 241, 0.15); color: var(--primary); border: 1px solid rgba(99, 102, 241, 0.2); font-size: 0.7rem; padding: 2px 6px;">Model A</span>
+                                         <select id="playground-provider-a-select" class="select-glow" style="padding: 6px 10px; font-size: 0.8rem; background-color: rgba(0,0,0,0.25);" onchange="onPlaygroundProviderChange('a')">
+                                             <option value="openrouter">OpenRouter API</option>
+                                             <option value="openai">OpenAI API</option>
+                                             <option value="gemini" selected>Google Gemini API</option>
+                                             <option value="anthropic">Anthropic (Claude)</option>
+                                             <option value="cohere">Cohere API</option>
+                                             <option value="local">Local CPU/GPU</option>
+                                         </select>
+                                         <select id="playground-model-a-select" class="select-glow" style="padding: 6px 10px; font-size: 0.8rem; background-color: rgba(0,0,0,0.25); min-width: 110px;" onchange="toggleCompareLocalInputs('a')">
+                                             <!-- Will be populated by JS -->
+                                         </select>
+                                         <div id="local-model-a-custom-inputs" class="local-model-inputs hidden">
+                                             <input type="text" id="playground-local-model-a-name" value="facebook/opt-125m" placeholder="Model path" style="padding: 6px 10px; width: 100px; font-size:0.8rem; border-radius:6px; background:rgba(0,0,0,0.3); border: 1px solid var(--border-color); color:#fff;">
+                                         </div>
+                                     </div>
+
+                                     <!-- Model B Select -->
+                                     <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                         <span class="badge" style="background: rgba(6, 182, 212, 0.15); color: var(--accent-teal); border: 1px solid rgba(6, 182, 212, 0.2); font-size: 0.7rem; padding: 2px 6px;">Model B</span>
+                                         <select id="playground-provider-b-select" class="select-glow" style="padding: 6px 10px; font-size: 0.8rem; background-color: rgba(0,0,0,0.25);" onchange="onPlaygroundProviderChange('b')">
+                                             <option value="openrouter" selected>OpenRouter API</option>
+                                             <option value="openai">OpenAI API</option>
+                                             <option value="gemini">Google Gemini API</option>
+                                             <option value="anthropic">Anthropic (Claude)</option>
+                                             <option value="cohere">Cohere API</option>
+                                             <option value="local">Local CPU/GPU</option>
+                                         </select>
+                                         <select id="playground-model-b-select" class="select-glow" style="padding: 6px 10px; font-size: 0.8rem; background-color: rgba(0,0,0,0.25); min-width: 110px;" onchange="toggleCompareLocalInputs('b')">
+                                             <!-- Will be populated by JS -->
+                                         </select>
+                                         <div id="local-model-b-custom-inputs" class="local-model-inputs hidden">
+                                             <input type="text" id="playground-local-model-b-name" value="facebook/opt-125m" placeholder="Model path" style="padding: 6px 10px; width: 100px; font-size:0.8rem; border-radius:6px; background:rgba(0,0,0,0.3); border: 1px solid var(--border-color); color:#fff;">
+                                         </div>
+                                     </div>
+                                 </div>
+                             </div>
+                            
+                            <!-- Single Chat Panel Messages -->
+                            <div class="chat-messages" id="chat-messages-box">
+                                <div class="chat-bubble assistant">
+                                    <p>Hello! Welcome to the OpenRouter playground. Choose a model above and start chatting to test generation.</p>
+                                </div>
+                            </div>
+
+                            <!-- Side-by-Side Compare Panel Messages -->
+                            <div class="compare-messages-container hidden" id="chat-compare-box" style="display: flex; flex-direction: row; flex-grow: 1; overflow: hidden;">
+                                <!-- Model A Column -->
+                                <div class="compare-pane" id="compare-pane-a" style="flex: 1; display: flex; flex-direction: column; border-right: 1px solid var(--border-color); overflow: hidden;">
+                                    <div class="compare-pane-header" style="padding: 8px 16px; border-bottom: 1px solid var(--border-color); background: rgba(255,255,255,0.01); display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem;">
+                                        <span style="color: var(--text-secondary); font-weight:600;">Model A Output</span>
+                                        <div class="compare-metrics" id="metrics-a" style="display: flex; gap: 8px;"></div>
+                                    </div>
+                                    <div class="chat-messages scrollable" id="chat-messages-a" style="flex-grow: 1; padding: 16px;">
+                                        <div class="chat-bubble assistant">
+                                            <p>Model A ready. Submit a prompt to generate side-by-side completions.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Model B Column -->
+                                <div class="compare-pane" id="compare-pane-b" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+                                    <div class="compare-pane-header" style="padding: 8px 16px; border-bottom: 1px solid var(--border-color); background: rgba(255,255,255,0.01); display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem;">
+                                        <span style="color: var(--text-secondary); font-weight:600;">Model B Output</span>
+                                        <div class="compare-metrics" id="metrics-b" style="display: flex; gap: 8px;"></div>
+                                    </div>
+                                    <div class="chat-messages scrollable" id="chat-messages-b" style="flex-grow: 1; padding: 16px;">
+                                        <div class="chat-bubble assistant">
+                                            <p>Model B ready. Submit a prompt to generate side-by-side completions.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Shared Chat Input Area -->
+                            <div class="chat-input-area">
+                                <textarea id="chat-input" placeholder="Type your prompt here..." rows="2" onkeydown="handleChatSubmit(event)"></textarea>
+                                <button type="button" class="btn btn-primary btn-round" id="btn-send-chat" onclick="sendChatPrompt()">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Chat Options Sidebar -->
+                        <div class="chat-sidebar card glassmorphic">
+                            <div class="card-header">
+                                <h4>Parameters</h4>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label for="temp-slider">Temperature: <span id="temp-val">0.7</span></label>
+                                    <input type="range" id="temp-slider" min="0" max="2" step="0.1" value="0.7" oninput="updateSliderVal('temp-slider', 'temp-val')">
+                                </div>
+                                <div class="form-group">
+                                    <label for="tokens-slider">Max Tokens: <span id="tokens-val">1024</span></label>
+                                    <input type="range" id="tokens-slider" min="64" max="4096" step="64" value="1024" oninput="updateSliderVal('tokens-slider', 'tokens-val')">
+                                </div>
+                                <hr class="divider">
+                                <button class="btn btn-secondary w-full" id="btn-clear-chat" onclick="clearChat()">Clear Chat History</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB 3: HUGGING FACE HUB -->
+                <section class="tab-panel" id="panel-huggingface">
+                    <!-- HF User Card -->
+                    <div class="card glassmorphic mb-6">
+                        <div class="card-body hf-profile-section">
+                            <div id="hf-profile-unauthorized" class="profile-placeholder">
+                                <div class="icon-avatar">🤗</div>
+                                <div>
+                                    <h4>Hugging Face Connection</h4>
+                                    <p class="subtext">Set your HF Write Token in the Dashboard settings to see profile details and upload models.</p>
+                                </div>
+                                <button class="btn btn-secondary" onclick="checkHuggingFaceLogin()">Check Login Status</button>
+                            </div>
+                            <div id="hf-profile-authorized" class="profile-container hidden">
+                                <img id="hf-avatar" src="" alt="HF Avatar" class="profile-avatar">
+                                <div class="profile-info">
+                                    <div class="profile-header">
+                                        <h4 id="hf-username">Username</h4>
+                                        <span class="badge badge-success" id="hf-auth-type">Write</span>
+                                    </div>
+                                    <p class="subtext" id="hf-email">email@example.com</p>
+                                    <p class="subtext" id="hf-orgs">Orgs: none</p>
+                                </div>
+                                <button class="btn btn-secondary btn-sm" onclick="checkHuggingFaceLogin()">Refresh Profile</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Repository Search -->
+                    <div class="grid-layout cols-2">
+                        <!-- Search Form & List -->
+                        <div class="card glassmorphic">
+                            <div class="card-header">
+                                <h3>Explore Models & Datasets</h3>
+                                <p>Search huggingface.co databases directly</p>
+                            </div>
+                            <div class="card-body">
+                                <div class="search-bar">
+                                    <input type="text" id="hf-search-input" placeholder="e.g. gemma-2, alpaca, opt-125m...">
+                                    <select id="hf-search-type">
+                                        <option value="models">Models</option>
+                                        <option value="datasets">Datasets</option>
+                                    </select>
+                                    <button class="btn btn-primary" onclick="searchHuggingFace()">Search</button>
+                                </div>
+                                <div class="search-results-container scrollable" id="hf-search-results">
+                                    <p class="placeholder-text">Enter query above to search repositories</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Local Model adapter Uploader -->
+                        <div class="card glassmorphic">
+                            <div class="card-header">
+                                <h3>Push Adapter to Hub</h3>
+                                <p>Publish fine-tuned model adapter folder to your HF repositories</p>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label for="hf-upload-repoid">Hugging Face Repository ID</label>
+                                    <input type="text" id="hf-upload-repoid" placeholder="e.g. your-username/my-fine-tuned-opt">
+                                    <p class="input-help">Format: username/repository-name. It will be created if it does not exist.</p>
+                                </div>
+                                <div class="form-group">
+                                    <label for="hf-upload-localpath">Local Folder Path</label>
+                                    <input type="text" id="hf-upload-localpath" readonly value="model_output">
+                                    <p class="input-help">Points to the directory containing adapter weights generated during fine-tuning.</p>
+                                </div>
+                                <button class="btn btn-primary" id="btn-upload-model" onclick="uploadModelToHub()">Upload Adapter Weights</button>
+                                <div id="hf-upload-message" class="alert-message mt-4"></div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB 4: FINE-TUNING STUDIO -->
+                <section class="tab-panel" id="panel-finetune">
+                    <div class="finetune-layout">
+                        <!-- Config Column -->
+                        <div class="card glassmorphic finetune-config">
+                            <div class="card-header">
+                                <h3>Training Parameters</h3>
+                                <p>Configure your LoRA fine-tuning hyperparameters</p>
+                            </div>
+                            <div class="card-body scrollable">
+                                <form id="finetune-form" onsubmit="startFineTuning(event)">
+                                    <div class="form-group">
+                                        <label for="ft-model-select">Base Model</label>
+                                        <select id="ft-model-select" class="w-full">
+                                            <option value="facebook/opt-125m">OPT-125m (Highly Recommended for Quick Tests, 125M params)</option>
+                                            <option value="TinyLlama/TinyLlama-1.1B-Chat-v1.0">TinyLlama 1.1B Chat (1.1B params)</option>
+                                            <option value="gpt2">GPT-2 (124M params)</option>
+                                        </select>
+                                    </div>
+                                    <div class="grid-layout cols-2 gap-small">
+                                        <div class="form-group">
+                                            <label for="ft-epochs">Epochs</label>
+                                            <input type="number" id="ft-epochs" step="0.1" value="1.0" min="0.1">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="ft-batchsize">Batch Size</label>
+                                            <input type="number" id="ft-batchsize" value="1" min="1">
+                                        </div>
+                                    </div>
+                                    <div class="grid-layout cols-2 gap-small">
+                                        <div class="form-group">
+                                            <label for="ft-lr">Learning Rate</label>
+                                            <input type="number" id="ft-lr" step="0.00001" value="0.0002" min="0.00001">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="ft-maxlen">Max Seq Length</label>
+                                            <input type="number" id="ft-maxlen" value="256" min="64" max="2048">
+                                        </div>
+                                    </div>
+                                    <div class="grid-layout cols-2 gap-small">
+                                        <div class="form-group">
+                                            <label for="ft-lora-r">LoRA Rank (r)</label>
+                                            <input type="number" id="ft-lora-r" value="8" min="1">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="ft-lora-alpha">LoRA Alpha</label>
+                                            <input type="number" id="ft-lora-alpha" value="16" min="1">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="ft-dataset-text">Dataset Inputs (Plain instructions or standard JSONL)</label>
+                                        <textarea id="ft-dataset-text" rows="6" placeholder="### User: Who are you?&#10;### Assistant: I am a customized local helper.&#10;&#10;### User: What can you do?&#10;### Assistant: I can complete text and run fine-tuning!&#10;&#10;Double newline separates examples. Use SFT format."></textarea>
+                                        <p class="input-help">Must provide at least 2 distinct prompt-response pairs separated by empty lines.</p>
+                                    </div>
+                                    
+                                    <div class="finetune-buttons">
+                                        <button type="submit" class="btn btn-primary flex-grow" id="btn-start-training">Launch Training</button>
+                                        <button type="button" class="btn btn-danger hidden" id="btn-stop-training" onclick="stopFineTuning()">Stop Job</button>
+                                    </div>
+                                </form>
+                                <hr class="divider">
+                                <!-- Model Merger Form -->
+                                <div class="merge-section mt-4">
+                                    <h4>Merge PEFT LoRA Weights</h4>
+                                    <p class="subtext mb-4">Fuse your local LoRA adapter weights with the base model into a standalone model.</p>
+                                    <div class="form-group">
+                                        <label for="merge-base-model">Base Model Name/Path</label>
+                                        <input type="text" id="merge-base-model" value="facebook/opt-125m">
+                                    </div>
+                                    <div class="grid-layout cols-2 gap-small">
+                                        <div class="form-group">
+                                            <label for="merge-adapter-path">Adapter Folder</label>
+                                            <input type="text" id="merge-adapter-path" value="model_output">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="merge-output-path">Merged Output Folder</label>
+                                            <input type="text" id="merge-output-path" value="model_output_merged">
+                                        </div>
+                                    </div>
+                                    <button type="button" class="btn btn-secondary w-full" id="btn-merge-model" onclick="startModelMerge()">Merge Adapter Weights</button>
+                                    <div id="merge-message" class="alert-message mt-2"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Progress & Logging Column -->
+                        <div class="card glassmorphic finetune-console">
+                            <div class="card-header border-glow flex-row justify-between">
+                                <div>
+                                    <h3>Console & Training Progress</h3>
+                                    <p id="training-progress-subtitle">Idle - Waiting for launch</p>
+                                </div>
+                                <span class="badge" id="training-status-badge">Idle</span>
+                            </div>
+                            <div class="card-body flex-col">
+                                <!-- SVG Loss Chart -->
+                                <div class="loss-chart-container mb-4 hidden" id="loss-chart-card">
+                                    <div class="chart-header-small mb-2">
+                                        <h5>Real-time Training Loss</h5>
+                                    </div>
+                                    <div class="chart-wrapper" style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); padding: 8px; border-radius: 8px;">
+                                        <svg id="loss-svg" viewBox="0 0 400 120" style="width:100%; height:120px; display:block;">
+                                            <!-- Y Grid Lines -->
+                                            <line x1="40" y1="10" x2="390" y2="10" stroke="rgba(255,255,255,0.04)" stroke-width="1"></line>
+                                            <line x1="40" y1="40" x2="390" y2="40" stroke="rgba(255,255,255,0.04)" stroke-width="1"></line>
+                                            <line x1="40" y1="70" x2="390" y2="70" stroke="rgba(255,255,255,0.04)" stroke-width="1"></line>
+                                            <line x1="40" y1="100" x2="390" y2="100" stroke="rgba(255,255,255,0.04)" stroke-width="1"></line>
+                                            <!-- Y Axes -->
+                                            <line x1="40" y1="10" x2="40" y2="100" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"></line>
+                                            <line x1="40" y1="100" x2="390" y2="100" stroke="rgba(255,255,255,0.15)" stroke-width="1.5"></line>
+                                            <!-- Y Labels -->
+                                            <text x="10" y="13" fill="var(--text-muted)" font-size="7">5.0</text>
+                                            <text x="10" y="43" fill="var(--text-muted)" font-size="7">3.3</text>
+                                            <text x="10" y="73" fill="var(--text-muted)" font-size="7">1.6</text>
+                                            <text x="10" y="103" fill="var(--text-muted)" font-size="7">0.0</text>
+                                            <!-- Dynamic Line Path -->
+                                            <path id="loss-path" d="" fill="none" stroke="var(--accent-teal)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+                                            <!-- Dynamic Dots -->
+                                            <g id="loss-points"></g>
+                                        </svg>
+                                    </div>
+                                </div>
+
+                                <!-- Progress bar UI -->
+                                <div class="progress-section mb-6">
+                                    <div class="progress-stats mb-2">
+                                        <span class="progress-lbl">Epoch: <strong id="progress-epoch">-</strong></span>
+                                        <span class="progress-lbl">Step: <strong id="progress-step">-</strong></span>
+                                        <span class="progress-lbl">Loss: <strong id="progress-loss">-</strong></span>
+                                    </div>
+                                    <div class="progress-bar-container">
+                                        <div class="progress-bar-fill animated" id="ft-progress-bar" style="width: 0%"></div>
+                                    </div>
+                                    <div class="progress-percent-val" id="progress-percent">0% Completed</div>
+                                </div>
+                                
+                                <!-- Console Logs -->
+                                <div class="console-title-bar">
+                                    <span>stdout logs</span>
+                                    <button class="btn btn-secondary btn-xs" onclick="clearConsole()">Clear Console</button>
+                                </div>
+                                <div class="console-box" id="ft-console-box">
+                                    <div class="console-line text-muted">Initialize training arguments and dataset parameters to begin...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Fine-Tuning Run History Log -->
+                    <div class="card glassmorphic mt-6">
+                        <div class="card-header border-glow flex-row justify-between align-center">
+                            <div>
+                                <h3>Fine-Tuning Run History</h3>
+                                <p>Tracked training metrics, hyperparameters and losses for completed runs</p>
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-secondary btn-sm" onclick="loadFinetuneHistory()">Refresh History</button>
+                                <button class="btn btn-danger btn-sm" onclick="clearFinetuneHistory()">Clear History</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container scrollable" style="max-height: 250px;">
+                                <table class="dataset-table" id="finetune-history-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Timestamp</th>
+                                            <th>Base Model</th>
+                                            <th>Dataset</th>
+                                            <th>Epochs</th>
+                                            <th>Batch Size</th>
+                                            <th>LR</th>
+                                            <th>LoRA (r/α)</th>
+                                            <th>Status</th>
+                                            <th>Final Loss</th>
+                                            <th>Duration</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td colspan="10" class="placeholder-text">Click refresh to load training history</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB 5: MODEL DOWNLOADER -->
+                <section class="tab-panel" id="panel-downloader">
+                    <div class="grid-layout cols-2">
+                        <!-- Left Panel: Download Form -->
+                        <div class="card glassmorphic">
+                            <div class="card-header border-glow">
+                                <h3>Download Model Weights</h3>
+                                <p>Pull models from Hugging Face Hub or direct HTTP/HTTPS URLs</p>
+                            </div>
+                            <div class="card-body">
+                                <form id="downloader-form" onsubmit="startModelDownload(event)">
+                                    <div class="form-group">
+                                        <label for="dl-source-select">Source Type</label>
+                                        <select id="dl-source-select" class="w-full" onchange="onDownloadSourceChange()">
+                                            <option value="huggingface">Hugging Face Hub</option>
+                                            <option value="modelscope">ModelScope Hub</option>
+                                            <option value="civitai">Civitai (Stable Diffusion)</option>
+                                            <option value="url">Direct HTTP/HTTPS URL</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group" id="dl-repo-id-group">
+                                        <label for="dl-repoid-input">Hugging Face Repo ID</label>
+                                        <input type="text" id="dl-repoid-input" placeholder="e.g. facebook/opt-125m">
+                                        <p class="input-help">Will snapshot download all weights & config files.</p>
+                                    </div>
+                                    <div class="form-group hidden" id="dl-url-group">
+                                        <label for="dl-url-input">Direct Model URL</label>
+                                        <input type="text" id="dl-url-input" placeholder="e.g. https://example.com/model.safetensors">
+                                        <p class="input-help">Supports direct links from Civitai, Kaggle, or other hosts.</p>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="dl-filename-input">Custom Filename (Optional)</label>
+                                        <input type="text" id="dl-filename-input" placeholder="e.g. model.safetensors (useful for URL downloads)">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="dl-folder-input">Target Folder Name (Optional)</label>
+                                        <input type="text" id="dl-folder-input" placeholder="e.g. opt-125m-local">
+                                        <p class="input-help">Saved inside workspace <code>models/</code> folder.</p>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary w-full" id="btn-start-download">Start Download Process</button>
+                                </form>
+                                <div id="downloader-message" class="alert-message mt-2"></div>
+                            </div>
+                        </div>
+
+                        <!-- Right Panel: Downloader Console & Progress -->
+                        <div class="card glassmorphic flex-col" style="min-height: 400px;">
+                            <div class="card-header border-glow flex-row justify-between">
+                                <div>
+                                    <h3>Download Status & Logs</h3>
+                                    <p id="download-progress-subtitle">Idle - Waiting for download</p>
+                                </div>
+                                <span class="badge" id="download-status-badge">Idle</span>
+                            </div>
+                            <div class="card-body flex-col" style="flex-grow: 1; display: flex; flex-direction: column;">
+                                <!-- Progress bar -->
+                                <div class="progress-section mb-4" id="downloader-progress-card">
+                                    <div class="progress-stats mb-2">
+                                        <span class="progress-lbl">Speed: <strong id="download-speed">-</strong></span>
+                                        <span class="progress-lbl">Downloaded: <strong id="download-downloaded">-</strong></span>
+                                    </div>
+                                    <div class="progress-bar-container">
+                                        <div class="progress-bar-fill animated" id="dl-progress-bar" style="width: 0%"></div>
+                                    </div>
+                                    <div class="progress-percent-val" id="download-percent">0% Completed</div>
+                                    <button class="btn btn-danger btn-sm mt-3 w-full hidden" id="btn-stop-download" onclick="stopModelDownload()">Cancel Download</button>
+                                </div>
+                                
+                                <div class="console-title-bar">
+                                    <span>Download Terminal Output</span>
+                                    <button class="btn btn-secondary btn-xs" onclick="clearDownloadConsole()">Clear Logs</button>
+                                </div>
+                                <div class="console-box" id="dl-console-box" style="flex-grow: 1; height: 180px; overflow-y: auto;">
+                                    <div class="console-line text-muted">Ready to download. Outputs will stream here...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Local Models Explorer -->
+                    <div class="card glassmorphic mt-6">
+                        <div class="card-header border-glow flex-row justify-between align-center">
+                            <div>
+                                <h3>Downloaded Local Models</h3>
+                                <p>Explore models saved in <code>models/</code> workspace directory (ready for fine-tuning or local inference)</p>
+                            </div>
+                            <button class="btn btn-secondary btn-sm" onclick="loadLocalModels()">Refresh Local List</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container scrollable" style="max-height: 250px;">
+                                <table class="dataset-table" id="local-models-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Model Name / File</th>
+                                            <th>Type</th>
+                                            <th>Size</th>
+                                            <th>Modified Date</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td colspan="5" class="placeholder-text">Click refresh to scan local models</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>

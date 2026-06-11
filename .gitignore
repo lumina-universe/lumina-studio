@@ -1,0 +1,9 @@
+node_modules/
+models/
+model_output/
+.venv/
+*.log
+.env
+.DS_Store
+run_history.json
+active_dataset.jsonl
