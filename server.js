@@ -803,6 +803,60 @@ app.post('/api/finetune/stop', (req, res) => {
 });
 
 // 4.5 Advanced API Routes (Local Chat, Dataset Management, PEFT Merging)
+app.get('/api/dataset/load', (req, res) => {
+    const datasetPath = path.join(__dirname, 'active_dataset.jsonl');
+    if (!fs.existsSync(datasetPath)) {
+        return res.json({ success: true, entries: [] });
+    }
+    try {
+        const fileContent = fs.readFileSync(datasetPath, 'utf8');
+        const lines = fileContent.trim().split('\n').filter(line => line.length > 0);
+        const entries = [];
+        lines.forEach(line => {
+            try {
+                const parsed = JSON.parse(line);
+                const text = parsed.text || '';
+                // Parse "### User: <prompt>\n### Assistant: <response>"
+                const userMatch = text.match(/###\s*User:\s*([\s\S]*?)\n###\s*Assistant:\s*([\s\S]*)/i);
+                if (userMatch) {
+                    entries.push({
+                        prompt: userMatch[1].trim(),
+                        response: userMatch[2].trim()
+                    });
+                } else {
+                    entries.push({
+                        prompt: text,
+                        response: ''
+                    });
+                }
+            } catch (e) {
+                entries.push({ prompt: line, response: '' });
+            }
+        });
+        res.json({ success: true, entries });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/dataset/save', (req, res) => {
+    const { entries } = req.body;
+    if (!Array.isArray(entries)) {
+        return res.status(400).json({ error: 'Entries must be an array' });
+    }
+    const datasetPath = path.join(__dirname, 'active_dataset.jsonl');
+    try {
+        const jsonlContent = entries.map(entry => {
+            const formattedText = `### User: ${entry.prompt.trim()}\n### Assistant: ${entry.response.trim()}`;
+            return JSON.stringify({ text: formattedText });
+        }).join('\n');
+        fs.writeFileSync(datasetPath, jsonlContent, 'utf8');
+        res.json({ success: true, message: 'Dataset saved successfully.' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/local/chat', (req, res) => {
     const { model, adapter, prompt, max_tokens, temperature } = req.body;
     if (!prompt) return res.status(400).json({ error: 'Prompt is required' });

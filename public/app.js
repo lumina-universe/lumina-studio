@@ -49,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadDatasets();
     loadFinetuneHistory();
     loadLocalModels();
+    loadActiveDataset();
     
     // Poll stats every 4 seconds
     statsInterval = setInterval(fetchStats, 4000);
@@ -83,6 +84,10 @@ const tabMeta = {
     huggingface: {
         title: 'Hugging Face Hub Integration',
         desc: 'Validate write permissions, explore models and datasets, and push local model adapters.'
+    },
+    dataset: {
+        title: 'Dataset Builder Studio',
+        desc: 'Interactively construct, validate, and manage prompt-response datasets for fine-tuning.'
     },
     finetune: {
         title: 'Fine-Tuning Studio',
@@ -1621,5 +1626,203 @@ async function clearFinetuneHistory() {
         }
     } catch (err) {
         alert(`Failed to clear history: ${err.message}`);
+    }
+}
+
+// --- DATASET STUDIO HANDLERS ---
+let datasetEntries = [];
+
+async function loadActiveDataset() {
+    try {
+        const response = await fetch('/api/dataset/load');
+        const data = await response.json();
+        if (data.success && data.entries) {
+            datasetEntries = data.entries;
+            if (datasetEntries.length === 0) {
+                // Load default customer support template if empty
+                loadDatasetTemplate('customer_support');
+            } else {
+                renderDatasetTable();
+                updateDatasetStats();
+            }
+        }
+    } catch (e) {
+        console.error("Failed to load active dataset:", e);
+    }
+}
+
+function renderDatasetTable() {
+    const tbody = document.getElementById('dataset-builder-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    
+    if (datasetEntries.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="placeholder-text">Dataset is empty. Click "+ Add Row" or load a template.</td></tr>';
+        return;
+    }
+    
+    datasetEntries.forEach((entry, index) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="font-weight: 600; color: var(--text-secondary); text-align: center; vertical-align: middle;">${index + 1}</td>
+            <td>
+                <textarea class="w-full ds-prompt-input" rows="2" style="background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 0.85rem; resize: vertical;" oninput="updateDatasetEntry(${index}, 'prompt', this.value)">${entry.prompt}</textarea>
+            </td>
+            <td>
+                <textarea class="w-full ds-response-input" rows="2" style="background: rgba(0,0,0,0.25); border: 1px solid var(--border-color); color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 0.85rem; resize: vertical;" oninput="updateDatasetEntry(${index}, 'response', this.value)">${entry.response}</textarea>
+            </td>
+            <td style="text-align: center; vertical-align: middle;">
+                <button class="btn btn-danger btn-xs" onclick="deleteDatasetRow(${index})">Delete</button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function updateDatasetEntry(index, key, value) {
+    if (datasetEntries[index]) {
+        datasetEntries[index][key] = value;
+        updateDatasetStats();
+    }
+}
+
+function addDatasetRow() {
+    datasetEntries.push({ prompt: '', response: '' });
+    renderDatasetTable();
+    updateDatasetStats();
+    
+    // Scroll table to bottom
+    const tableContainer = document.querySelector('#panel-dataset .table-container');
+    if (tableContainer) {
+        setTimeout(() => {
+            tableContainer.scrollTop = tableContainer.scrollHeight;
+        }, 50);
+    }
+}
+
+function deleteDatasetRow(index) {
+    datasetEntries.splice(index, 1);
+    renderDatasetTable();
+    updateDatasetStats();
+}
+
+async function saveActiveDataset() {
+    const msgEl = document.getElementById('dataset-message');
+    if (!msgEl) return;
+    msgEl.className = 'alert-message';
+    msgEl.innerText = '';
+    
+    // Validate
+    const invalid = datasetEntries.some(e => !e.prompt.trim() || !e.response.trim());
+    if (invalid) {
+        msgEl.className = 'alert-message error';
+        msgEl.innerText = 'Error: Dataset cannot contain empty prompts or responses.';
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/dataset/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ entries: datasetEntries })
+        });
+        const data = await response.json();
+        if (response.ok && data.success) {
+            msgEl.className = 'alert-message success';
+            msgEl.innerText = 'Dataset successfully written to active_dataset.jsonl';
+            
+            // Highlight textareas border green briefly
+            const textareas = document.querySelectorAll('#dataset-builder-table textarea');
+            textareas.forEach(t => {
+                t.style.borderColor = 'var(--success)';
+                setTimeout(() => t.style.borderColor = '', 1000);
+            });
+        } else {
+            throw new Error(data.error || 'Failed to save dataset');
+        }
+    } catch (e) {
+        msgEl.className = 'alert-message error';
+        msgEl.innerText = `Save failed: ${e.message}`;
+    }
+}
+
+function updateDatasetStats() {
+    const statRows = document.getElementById('ds-stat-rows');
+    if (!statRows) return;
+    
+    statRows.innerText = datasetEntries.length;
+    
+    let totalPromptChars = 0;
+    const words = new Set();
+    let hasEmpty = false;
+    
+    datasetEntries.forEach(e => {
+        const prompt = e.prompt.trim();
+        const response = e.response.trim();
+        
+        totalPromptChars += prompt.length;
+        if (!prompt || !response) hasEmpty = true;
+        
+        const allText = `${prompt} ${response}`;
+        allText.toLowerCase().split(/\s+/).forEach(w => {
+            if (w.length > 1) words.add(w);
+        });
+    });
+    
+    const avgPromptLen = datasetEntries.length > 0 ? Math.round(totalPromptChars / datasetEntries.length) : 0;
+    
+    document.getElementById('ds-stat-vocab').innerText = `${words.size} unique words`;
+    document.getElementById('ds-stat-avg-prompt').innerText = `${avgPromptLen} chars`;
+    
+    const statusVal = document.getElementById('ds-stat-status');
+    if (datasetEntries.length === 0) {
+        statusVal.innerHTML = '<span class="badge badge-error">Empty</span>';
+    } else if (hasEmpty) {
+        statusVal.innerHTML = '<span class="badge badge-warning">Empty Fields</span>';
+    } else if (datasetEntries.length < 5) {
+        statusVal.innerHTML = '<span class="badge badge-warning">Too Small</span>';
+    } else {
+        statusVal.innerHTML = '<span class="badge badge-success">Sufficient</span>';
+    }
+}
+
+function loadDatasetTemplate(templateId) {
+    const templates = {
+        customer_support: [
+            { prompt: "Hello, I received a damaged item in my order. What should I do?", response: "Hello! We are very sorry to hear that. Please reply with your Order ID and a photo of the damaged item. We will arrange a replacement or refund immediately!" },
+            { prompt: "How long does shipping take for standard orders?", response: "Standard shipping typically takes 3 to 5 business days within the country. International shipping can take 7 to 14 business days depending on customs." },
+            { prompt: "Can I cancel my subscription at any time?", response: "Yes, you can cancel your subscription at any time from your Account Settings panel. Your access will remain active until the end of the current billing cycle." },
+            { prompt: "Do you offer discounts for annual billing?", response: "Absolutely! We offer a 20% discount if you choose our annual billing plan instead of monthly billing." },
+            { prompt: "I forgot my password. How do I reset it?", response: "You can click on the 'Forgot Password' link on the login page. We will send an email with secure instructions to reset your password." }
+        ],
+        code_helper: [
+            { prompt: "Write a python function to check if a number is prime.", response: "def is_prime(n):\n    if n <= 1:\n        return False\n    for i in range(2, int(n**0.5) + 1):\n        if n % i == 0:\n            return False\n    return True" },
+            { prompt: "How do you define a CSS flexbox layout to center an element?", response: ".container {\n    display: flex;\n    justify-content: center;\n    align-items: center;\n}" },
+            { prompt: "Explain the difference between let and const in JavaScript.", response: "'let' permits you to reassign variables and has block scope. 'const' declares a read-only reference that cannot be reassigned after declaration." },
+            { prompt: "How do you handle error exceptions in Python?", response: "You can handle errors using try-except blocks:\n\ntry:\n    # code that might raise error\n    result = 10 / 0\nexcept ZeroDivisionError as e:\n    print(f'Error occurred: {e}')" }
+        ],
+        sql_expert: [
+            { prompt: "Write an SQL query to find all employees earning more than $100,000.", response: "SELECT * FROM employees WHERE salary > 100000;" },
+            { prompt: "How do you count the number of rows in a table called 'orders'?", response: "SELECT COUNT(*) FROM orders;" },
+            { prompt: "Explain SQL INNER JOIN with a short query.", response: "INNER JOIN returns records that have matching values in both tables. Example:\n\nSELECT orders.id, customers.name\nFROM orders\nINNER JOIN customers ON orders.customer_id = customers.id;" },
+            { prompt: "How do you sort employees by department and then by salary descending?", response: "SELECT * FROM employees ORDER BY department ASC, salary DESC;" }
+        ],
+        creative: [
+            { prompt: "Write a short poem about space exploration.", response: "Into the dark of silent skies,\nWe lift our hearts and turn our eyes,\nBeyond the stars, past moonlit spheres,\nTo conquer all our ancient fears." },
+            { prompt: "Provide a creative hook for a fantasy novel about a clockwork dragon.", response: "The metallic heart of the beast beat with a rhythmic brass click, its copper eyes glowing with steam-fueled fire, waiting to awaken in a kingdom of paper." },
+            { prompt: "Describe a peaceful beach scene using sensory details.", response: "The salty breeze carried the cool mist of crashing waves. Warm, golden sand slipped slowly through my toes as the distant cries of gulls faded into the rhythmic song of the ocean." }
+        ]
+    };
+    
+    if (templates[templateId]) {
+        datasetEntries = JSON.parse(JSON.stringify(templates[templateId]));
+        renderDatasetTable();
+        updateDatasetStats();
+        
+        const msgEl = document.getElementById('dataset-message');
+        if (msgEl) {
+            msgEl.className = 'alert-message success';
+            msgEl.innerText = `${templateId.replace('_', ' ')} template loaded. Click 'Save Dataset' to write it to disk.`;
+        }
     }
 }
