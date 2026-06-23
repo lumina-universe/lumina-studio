@@ -1,35 +1,12 @@
-FROM python:3.10-slim
+FROM python:3.12-slim
 
-# Set working directory
 WORKDIR /app
+COPY requirements.txt server.py index.html ./
+RUN pip install --no-cache-dir -r requirements.txt
+RUN mkdir -p outputs
 
-# Install system dependencies and Node.js
-RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-    build-essential \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+ENV LUMINA_HOST=0.0.0.0
+ENV LUMINA_PORT=8765
+EXPOSE 8765
 
-# Install python packages (CPU version of PyTorch for low-cost, high-compatibility execution)
-COPY requirements.txt .
-RUN pip3 install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
-RUN pip3 install --no-cache-dir -r requirements.txt
-
-# Create a symlink to python for server.js compatibility
-RUN mkdir -p .venv/bin && ln -sf $(which python3) .venv/bin/python
-
-# Copy package.json and install Node dependencies
-COPY package.json .
-RUN npm install
-
-# Copy application files
-COPY . .
-
-# Expose port
-EXPOSE 8500
-
-# Run the app
-CMD ["node", "server.js"]
+CMD ["python", "server.py"]

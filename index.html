@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lumina 3D Studio</title>
+  <style>
+    :root { --bg:#0a0a12; --cyan:#00e5ff; --pink:#ff2a5f; --text:#f0f0f0; --muted:#9090a0; }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { font-family:Inter,system-ui,sans-serif; background:var(--bg); color:var(--text); min-height:100vh; padding:32px; }
+    h1 { font-size:2rem; margin-bottom:8px; background:linear-gradient(135deg,#fff,var(--cyan)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    p { color:var(--muted); margin-bottom:24px; }
+    .panel { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.08); border-radius:16px; padding:24px; max-width:720px; }
+    button { background:linear-gradient(135deg,var(--pink),var(--cyan)); border:none; color:#fff; padding:12px 20px; border-radius:10px; font-weight:700; cursor:pointer; }
+    pre { margin-top:16px; background:#111; padding:16px; border-radius:10px; overflow:auto; font-size:.85rem; }
+    .badge { display:inline-block; padding:4px 10px; border-radius:999px; border:1px solid rgba(0,229,255,.3); color:var(--cyan); font-size:.75rem; margin-bottom:16px; }
+  </style>
+</head>
+<body>
+  <div class="badge">Lumina AI Engine · :8765</div>
+  <h1>Lumina 3D Studio</h1>
+  <p>단일 이미지 → 3D 메시 재구성 (TripoSR). 현재 stub 모드 — API 연결 확인용.</p>
+  <div class="panel">
+    <button id="run">Run Stub Reconstruction</button>
+    <pre id="out">Ready.</pre>
+  </div>
+  <script>
+    document.getElementById('run').onclick = async () => {
+      const out = document.getElementById('out');
+      out.textContent = 'Running...';
+      const res = await fetch('/api/reconstruct', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ mode:'image-to-3d' }) });
+      out.textContent = JSON.stringify(await res.json(), null, 2);
+    };
+  </script>
+</body>
+</html>
