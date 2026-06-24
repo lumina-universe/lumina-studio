@@ -669,7 +669,13 @@ app.post('/api/finetune/start', (req, res) => {
         max_seq_length,
         dataset_text,
         dataset_jsonl,
-        dataset_filename
+        dataset_filename,
+        lr_scheduler_type,
+        optim,
+        weight_decay,
+        warmup_ratio,
+        lora_dropout,
+        target_modules
     } = req.body;
 
     // Reset status
@@ -693,6 +699,14 @@ app.post('/api/finetune/start', (req, res) => {
         fs.writeFileSync(datasetPath, jsonlContent, 'utf8');
     }
 
+    // Parse target modules
+    let targetModulesArr = ["q_proj", "v_proj"];
+    if (Array.isArray(target_modules)) {
+        targetModulesArr = target_modules;
+    } else if (typeof target_modules === 'string' && target_modules.trim()) {
+        targetModulesArr = target_modules.split(',').map(s => s.trim()).filter(Boolean);
+    }
+
     // Write hyperparameter JSON config
     const ftConfig = {
         model_name: model_name || 'facebook/opt-125m',
@@ -700,10 +714,16 @@ app.post('/api/finetune/start', (req, res) => {
         output_dir: path.join(__dirname, 'model_output'),
         lora_r: parseInt(lora_r) || 8,
         lora_alpha: parseInt(lora_alpha) || 16,
+        lora_dropout: lora_dropout !== undefined ? parseFloat(lora_dropout) : 0.05,
+        target_modules: targetModulesArr,
         epochs: parseFloat(epochs) || 1.0,
         batch_size: parseInt(batch_size) || 1,
         learning_rate: parseFloat(learning_rate) || 2e-4,
         max_seq_length: parseInt(max_seq_length) || 512,
+        lr_scheduler_type: lr_scheduler_type || 'cosine',
+        optim: optim || 'adamw_torch',
+        weight_decay: weight_decay !== undefined ? parseFloat(weight_decay) : 0.01,
+        warmup_ratio: warmup_ratio !== undefined ? parseFloat(warmup_ratio) : 0.03,
         hf_token: config.HF_TOKEN
     };
 

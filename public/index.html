@@ -588,9 +588,14 @@
                                         </div>
                                     </div>
 
-                                    <div style="margin-bottom: 16px;">
+                                    <div style="margin-bottom: 12px;">
                                         <label for="ds-gen-topic" style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Topic or Prompt Goal</label>
                                         <input type="text" id="ds-gen-topic" placeholder="e.g. E-commerce refund assistant" style="padding: 8px 10px; font-size: 0.8rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color:#fff; width: 100%; box-sizing: border-box;">
+                                    </div>
+
+                                    <div style="margin-bottom: 16px;">
+                                        <label for="ds-gen-context" style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Context Document / Text (Optional - for Q&A extraction)</label>
+                                        <textarea id="ds-gen-context" placeholder="Paste context text, manuals, or logs here to extract factual Q&A pairs from it." rows="3" style="padding: 8px 10px; font-size: 0.8rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color:#fff; width: 100%; box-sizing: border-box; resize: vertical;"></textarea>
                                     </div>
                                     
                                     <button type="button" class="btn btn-secondary btn-sm w-full" id="btn-generate-synthetic" onclick="generateSyntheticDataset()">🪄 Generate & Append Examples</button>
@@ -650,6 +655,52 @@
                                             <input type="number" id="ft-lora-alpha" value="16" min="1">
                                         </div>
                                     </div>
+
+                                    <!-- Advanced SFT Parameters foldout -->
+                                    <div class="advanced-tuning-foldout mt-2 mb-4">
+                                        <button type="button" class="btn btn-secondary btn-xs w-full" onclick="toggleAdvancedTuning()" style="background: rgba(139, 92, 246, 0.08); border: 1px dashed rgba(139, 92, 246, 0.3); font-weight:600; padding: 8px; border-radius: 6px; cursor: pointer; color: var(--accent-purple);">⚙️ Toggle Advanced SFT Hyperparameters</button>
+                                        <div id="advanced-tuning-fields" class="hidden mt-3" style="padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid var(--border-color);">
+                                            <div class="grid-layout cols-2 gap-small">
+                                                <div class="form-group">
+                                                    <label for="ft-lr-scheduler" style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">LR Scheduler</label>
+                                                    <select id="ft-lr-scheduler" style="padding: 6px 10px; font-size: 0.8rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color:#fff; width:100%; box-sizing: border-box;">
+                                                        <option value="cosine" selected>cosine</option>
+                                                        <option value="linear">linear</option>
+                                                        <option value="constant">constant</option>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="ft-optimizer" style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Optimizer</label>
+                                                    <select id="ft-optimizer" style="padding: 6px 10px; font-size: 0.8rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color:#fff; width:100%; box-sizing: border-box;">
+                                                        <option value="adamw_torch" selected>adamw_torch</option>
+                                                        <option value="adamw_hf">adamw_hf</option>
+                                                        <option value="sgd">sgd</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="grid-layout cols-2 gap-small">
+                                                <div class="form-group">
+                                                    <label for="ft-weight-decay" style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Weight Decay</label>
+                                                    <input type="number" id="ft-weight-decay" step="0.005" value="0.01" min="0.0" style="padding: 6px 10px; font-size: 0.8rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color:#fff; width:100%; box-sizing: border-box;">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="ft-warmup-ratio" style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Warmup Ratio</label>
+                                                    <input type="number" id="ft-warmup-ratio" step="0.01" value="0.03" min="0.0" max="1.0" style="padding: 6px 10px; font-size: 0.8rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color:#fff; width:100%; box-sizing: border-box;">
+                                                </div>
+                                            </div>
+                                            <div class="grid-layout cols-2 gap-small">
+                                                <div class="form-group">
+                                                    <label for="ft-lora-dropout" style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">LoRA Dropout</label>
+                                                    <input type="number" id="ft-lora-dropout" step="0.01" value="0.05" min="0.0" max="0.5" style="padding: 6px 10px; font-size: 0.8rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color:#fff; width:100%; box-sizing: border-box;">
+                                                </div>
+                                                <div class="form-group">
+                                                    <label for="ft-target-modules" style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 4px;">Target Modules</label>
+                                                    <input type="text" id="ft-target-modules" value="q_proj, v_proj" placeholder="e.g. q_proj, v_proj" style="padding: 6px 10px; font-size: 0.8rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 6px; color:#fff; width:100%; box-sizing: border-box;">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div class="form-group">
                                         <label for="ft-dataset-text">Dataset Inputs (Plain instructions or standard JSONL)</label>
                                         <textarea id="ft-dataset-text" rows="6" placeholder="### User: Who are you?&#10;### Assistant: I am a customized local helper.&#10;&#10;### User: What can you do?&#10;### Assistant: I can complete text and run fine-tuning!&#10;&#10;Double newline separates examples. Use SFT format."></textarea>

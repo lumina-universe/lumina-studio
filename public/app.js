@@ -819,6 +819,13 @@ async function startFineTuning(event) {
     const alpha = parseInt(document.getElementById('ft-lora-alpha').value);
     const datasetText = document.getElementById('ft-dataset-text').value.trim();
     
+    const lrScheduler = document.getElementById('ft-lr-scheduler').value;
+    const optimizer = document.getElementById('ft-optimizer').value;
+    const weightDecay = parseFloat(document.getElementById('ft-weight-decay').value);
+    const warmupRatio = parseFloat(document.getElementById('ft-warmup-ratio').value);
+    const loraDropout = parseFloat(document.getElementById('ft-lora-dropout').value);
+    const targetModules = document.getElementById('ft-target-modules').value.trim();
+
     let selectedDatasetFilename = null;
     const placeholderVal = document.getElementById('ft-dataset-text').placeholder;
     if (placeholderVal.includes('Using saved file:')) {
@@ -855,7 +862,13 @@ async function startFineTuning(event) {
                 lora_alpha: alpha,
                 max_seq_length: maxLen,
                 dataset_text: datasetText,
-                dataset_filename: selectedDatasetFilename
+                dataset_filename: selectedDatasetFilename,
+                lr_scheduler_type: lrScheduler,
+                optim: optimizer,
+                weight_decay: weightDecay,
+                warmup_ratio: warmupRatio,
+                lora_dropout: loraDropout,
+                target_modules: targetModules
             })
         });
         
@@ -1862,10 +1875,11 @@ async function generateSyntheticDataset() {
     const msg = document.getElementById('dataset-gen-message');
     const provider = document.getElementById('ds-gen-provider').value;
     const topic = document.getElementById('ds-gen-topic').value.trim();
+    const context = document.getElementById('ds-gen-context').value.trim();
     const count = parseInt(document.getElementById('ds-gen-count').value);
     
-    if (!topic) {
-        alert('Please enter a topic or prompt goal to generate SFT training examples.');
+    if (!topic && !context) {
+        alert('Please enter a topic or paste a context document to generate SFT training examples.');
         return;
     }
     
@@ -1873,7 +1887,12 @@ async function generateSyntheticDataset() {
     btn.innerText = '🪄 Generating SFT Pairs...';
     msg.style.display = 'block';
     msg.className = 'alert-message text-muted';
-    msg.innerText = `Calling ${provider} to generate ${count} training examples on "${topic}"...`;
+    
+    if (context) {
+        msg.innerText = `Calling ${provider} to extract ${count} factual training examples from context matching "${topic || 'General Context'}"...`;
+    } else {
+        msg.innerText = `Calling ${provider} to generate ${count} training examples on "${topic}"...`;
+    }
     
     // Choose model based on provider
     let model = '';
@@ -1887,12 +1906,31 @@ async function generateSyntheticDataset() {
 You must output ONLY a raw, valid JSON array of objects. Do NOT output markdown code blocks (e.g. \`\`\`json). Just the raw JSON content itself.
 Each object must have exactly two keys: "prompt" (the user instruction/prompt) and "response" (the assistant output).`;
 
-    const userPrompt = `Generate exactly ${count} diverse and realistic prompt-response SFT training pairs about: "${topic}".
+    let userPrompt = '';
+    if (context) {
+        userPrompt = `Based on the following context, generate exactly ${count} diverse, factual prompt-response SFT training pairs.
+The prompts should ask questions or requests that can be directly and factually answered using the context.
+The responses must be fully grounded in the context without hallucination or adding external details.
+Topic/Goal filter: "${topic || 'General extraction'}"
+
+Context:
+"""
+${context}
+"""
+
 Output format:
 [
   {"prompt": "...", "response": "..."},
   ...
 ]`;
+    } else {
+        userPrompt = `Generate exactly ${count} diverse and realistic prompt-response SFT training pairs about: "${topic}".
+Output format:
+[
+  {"prompt": "...", "response": "..."},
+  ...
+]`;
+    }
 
     try {
         const response = await fetch('/api/playground/chat', {
@@ -1905,7 +1943,7 @@ Output format:
                     { role: 'system', content: systemInstruction },
                     { role: 'user', content: userPrompt }
                 ],
-                temperature: 0.8,
+                temperature: context ? 0.2 : 0.8, // lower temperature for factual grounding when using context
                 max_tokens: 2048
             })
         });
@@ -1949,6 +1987,7 @@ Output format:
         msg.className = 'alert-message success';
         msg.innerText = `Successfully generated and added ${parsed.length} synthetic examples to the builder. Make sure to click "Save Dataset" to write to active_dataset.jsonl!`;
         document.getElementById('ds-gen-topic').value = '';
+        document.getElementById('ds-gen-context').value = '';
     } catch (err) {
         console.error('Synthetic generation error:', err);
         msg.className = 'alert-message error';
@@ -1956,5 +1995,13 @@ Output format:
     } finally {
         btn.disabled = false;
         btn.innerText = '🪄 Generate & Append Examples';
+    }
+}
+
+// Toggle advanced hyperparameters visibility
+function toggleAdvancedTuning() {
+    const fields = document.getElementById('advanced-tuning-fields');
+    if (fields) {
+        fields.classList.toggle('hidden');
     }
 }

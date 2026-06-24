@@ -53,6 +53,12 @@ def train_model(config_path):
     max_seq_length = config.get("max_seq_length", 512)
     max_steps = config.get("max_steps", -1) # -1 means train for all epochs
     
+    # Advanced Tuning Hyperparameters
+    lr_scheduler_type = config.get("lr_scheduler_type", "cosine")
+    optim = config.get("optim", "adamw_torch")
+    weight_decay = config.get("weight_decay", 0.01)
+    warmup_ratio = config.get("warmup_ratio", 0.03)
+    
     print(f"Checking hardware accelerator...", flush=True)
     # Detect hardware
     device = "cpu"
@@ -141,7 +147,11 @@ def train_model(config_path):
         report_to="none",
         remove_unused_columns=True,
         dataset_text_field="text",
-        max_length=max_seq_length
+        max_length=max_seq_length,
+        lr_scheduler_type=lr_scheduler_type,
+        optim=optim,
+        weight_decay=weight_decay,
+        warmup_ratio=warmup_ratio
     )
     
     # SFT Trainer
